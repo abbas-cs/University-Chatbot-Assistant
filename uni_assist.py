@@ -5,9 +5,10 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.tools.retriever import create_retriever_tool
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from dotenv import load_dotenv
-from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
+import sqlite3
 
 load_dotenv()
 
@@ -44,7 +45,7 @@ retriever_tool = create_retriever_tool(
 )
 
 # LLM Model
-llm = HuggingFaceEndpoint(repo_id='deepseek-ai/DeepSeek-V3.2-Exp')
+llm = HuggingFaceEndpoint(repo_id='Qwen/Qwen3-4B-Instruct-2507')
 
 model = ChatHuggingFace(llm=llm)
 model_with_tools = model.bind_tools([retriever_tool])
@@ -70,8 +71,11 @@ def chat_node(state: MessagesState):
 # Tool Node
 tool_node = ToolNode([retriever_tool])
 
+# create database
+conn = sqlite3.connect('uni_assist.db', check_same_thread=False)
+
 # Graph
-checkpointer = InMemorySaver()
+checkpointer = SqliteSaver(conn=conn)
 
 graph = StateGraph(MessagesState)
 
@@ -84,3 +88,13 @@ graph.add_edge('tools', 'chat_node')
 
 chatbot = graph.compile(checkpointer=checkpointer)
 
+def return_threads():
+    all_threads = set()
+
+    for checkpoint in checkpointer.list(None):
+        all_threads.add(checkpoint.config['configurable']['thread_id'])
+
+    if not all_threads:
+        return []
+    else:
+        return [all_threads]
