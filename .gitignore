@@ -1,3 +1,6 @@
 assistant/
 .env
+
+# adding pycache file
 __pycache__/
+*.pyc
